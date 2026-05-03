@@ -28,10 +28,10 @@ class BasePlugin:
         self.star_ip = Parameters["Mode2"]
         self.interval = int(Parameters["Mode3"])
 
-        create_device(1, "MAIN Internet")
-        create_device(2, "MAIN Latency")
-        create_device(3, "STARLINK Internet")
-        create_device(4, "STARLINK Latency")
+        create_switch(1, "MAIN Internet")
+        create_latency(2, "MAIN Latency")
+        create_switch(3, "STARLINK Internet")
+        create_latency(4, "STARLINK Latency")
 
         Domoticz.Heartbeat(10)
 
@@ -74,14 +74,24 @@ def ping(ip):
     except:
         return False, 0
 
-
-def create_device(unit, name):
+def create_switch(unit, name):
     if unit not in Devices:
         Domoticz.Device(
             Name=name,
             Unit=unit,
             Type=244,
             Subtype=73,
+            Used=1
+        ).Create()
+
+
+def create_latency(unit, name):
+    if unit not in Devices:
+        Domoticz.Device(
+            Name=name,
+            Unit=unit,
+            Type=243,
+            Subtype=31,
             Used=1
         ).Create()
 
