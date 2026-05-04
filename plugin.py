@@ -57,17 +57,36 @@ class BasePlugin:
         self.check(self.main_ip, 1, 2, "MAIN")
         self.check(self.star_ip, 3, 4, "STARLINK")
 
-    def check(self, ip, unit_status, unit_latency, name):
-        ok, latency = ping(ip)
+    def check_all(self):
+    main_ok, main_latency = ping(self.main_ip)
+    star_ok, star_latency = ping(self.star_ip)
 
-        if ok:
-            update_switch(unit_status, True)
-            update_value(unit_latency, latency)
-            Domoticz.Log(f"{name} OK {latency} ms")
-        else:
-            update_switch(unit_status, False)
-            update_value(unit_latency, 0)
-            Domoticz.Log(f"{name} DOWN")
+    update_switch(1, main_ok)
+    update_value(2, main_latency if main_ok else 0)
+
+    update_switch(3, star_ok)
+    update_value(4, star_latency if star_ok else 0)
+
+    Domoticz.Log("MAIN {} - {} ms / STARLINK {} - {} ms".format(
+        "OK" if main_ok else "DOWN",
+        main_latency,
+        "OK" if star_ok else "DOWN",
+        star_latency
+    ))
+
+    # premier passage : pas de notification
+    if self.last_main_state is None:
+        self.last_main_state = main_ok
+        self.last_star_state = star_ok
+        return
+
+    # notification uniquement si changement d'état
+    if main_ok != self.last_main_state or star_ok != self.last_star_state:
+        msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
+        Send_Notifications(self, msg, priority)
+
+    self.last_main_state = main_ok
+    self.last_star_state = star_ok
 
 
 def ping(ip):
