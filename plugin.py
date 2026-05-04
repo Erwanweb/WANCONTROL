@@ -59,36 +59,36 @@ class BasePlugin:
     
         self.check_all()
 
-def check_all(self):
-    main_ok, main_latency = ping(self.main_ip)
-    star_ok, star_latency = ping(self.star_ip)
-    
-    update_switch(1, main_ok)
-    update_value(2, main_latency if main_ok else 0)
-    
-    update_switch(3, star_ok)
-    update_value(4, star_latency if star_ok else 0)
-    
-    Domoticz.Log("MAIN {} - {} ms / STARLINK {} - {} ms".format(
-        "OK" if main_ok else "DOWN",
-        main_latency,
-        "OK" if star_ok else "DOWN",
-        star_latency
-    ))
-    
-    # premier passage : pas de notification
-    if self.last_main_state is None:
+    def check_all(self):
+        main_ok, main_latency = ping(self.main_ip)
+        star_ok, star_latency = ping(self.star_ip)
+        
+        update_switch(1, main_ok)
+        update_value(2, main_latency if main_ok else 0)
+        
+        update_switch(3, star_ok)
+        update_value(4, star_latency if star_ok else 0)
+        
+        Domoticz.Log("MAIN {} - {} ms / STARLINK {} - {} ms".format(
+            "OK" if main_ok else "DOWN",
+            main_latency,
+            "OK" if star_ok else "DOWN",
+            star_latency
+        ))
+        
+        # premier passage : pas de notification
+        if self.last_main_state is None:
+            self.last_main_state = main_ok
+            self.last_star_state = star_ok
+            return
+        
+        # notification uniquement si changement d'état
+        if main_ok != self.last_main_state or star_ok != self.last_star_state:
+            msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
+            Send_Notifications(self, msg, priority)
+        
         self.last_main_state = main_ok
         self.last_star_state = star_ok
-        return
-    
-    # notification uniquement si changement d'état
-    if main_ok != self.last_main_state or star_ok != self.last_star_state:
-        msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
-        Send_Notifications(self, msg, priority)
-    
-    self.last_main_state = main_ok
-    self.last_star_state = star_ok
 
 def ping(ip):
     try:
