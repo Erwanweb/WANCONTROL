@@ -162,10 +162,10 @@ def build_message(main_ok, star_ok, main_latency, star_latency):
     return "{}\n{}\n{}".format(title, main_txt, star_txt), priority
     
 def Send_Notifications(self, message, priority=0):
-    if self.TelegramID != "0":
+    if self.TelegramID != "0" and self.TelegramID != "":
         TelegramAPI(self.TelegramID, message)
 
-    if self.PushoverUserKey != "0":
+    if self.PushoverUserKey != "0" and self.PushoverUserKey != "":
         PushoverAPI(self.PushoverUserKey, message, priority)
 
 def TelegramAPI(chat_id, message):
