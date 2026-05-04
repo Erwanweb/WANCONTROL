@@ -15,6 +15,9 @@ import Domoticz
 import subprocess
 import time
 import re
+import urllib.request as request
+import urllib.parse as parse
+import json
 
 
 class BasePlugin:
@@ -51,43 +54,41 @@ class BasePlugin:
     def onHeartbeat(self):
         if time.time() - self.last < self.interval:
             return
-
+    
         self.last = time.time()
+    
+        self.check_all()
 
-        self.check(self.main_ip, 1, 2, "MAIN")
-        self.check(self.star_ip, 3, 4, "STARLINK")
-
-    def check_all(self):
+def check_all(self):
     main_ok, main_latency = ping(self.main_ip)
     star_ok, star_latency = ping(self.star_ip)
-
+    
     update_switch(1, main_ok)
     update_value(2, main_latency if main_ok else 0)
-
+    
     update_switch(3, star_ok)
     update_value(4, star_latency if star_ok else 0)
-
+    
     Domoticz.Log("MAIN {} - {} ms / STARLINK {} - {} ms".format(
         "OK" if main_ok else "DOWN",
         main_latency,
         "OK" if star_ok else "DOWN",
         star_latency
     ))
-
+    
     # premier passage : pas de notification
     if self.last_main_state is None:
         self.last_main_state = main_ok
         self.last_star_state = star_ok
         return
-
+    
     # notification uniquement si changement d'état
     if main_ok != self.last_main_state or star_ok != self.last_star_state:
         msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
         Send_Notifications(self, msg, priority)
-
+    
     self.last_main_state = main_ok
     self.last_star_state = star_ok
-
 
 def ping(ip):
     try:
@@ -141,17 +142,36 @@ def update_value(unit, value):
 
 # Plugin notification functions ---------------------------------------------------
 
-def Send_Notifications(self, message):
+def build_message(main_ok, star_ok, main_latency, star_latency):
+    main_txt = "🌐 MAIN fibre Movistar OK ✅ {} ms".format(main_latency) if main_ok else "❌ MAIN fibre Movistar DOWN"
+    star_txt = "📡 STARLINK OK ✅ {} ms".format(star_latency) if star_ok else "❌ STARLINK DOWN"
+
+    if main_ok and star_ok:
+        title = "✅ Internet rétabli sur les 2 WAN"
+        priority = 0
+    elif main_ok and not star_ok:
+        title = "⚠️ Starlink DOWN, fibre Movistar OK"
+        priority = 0
+    elif not main_ok and star_ok:
+        title = "⚠️ Fibre Movistar DOWN, Starlink OK"
+        priority = 0
+    else:
+        title = "🚨 ALERTE : plus aucun Internet"
+        priority = 1
+
+    return "{}\n{}\n{}".format(title, main_txt, star_txt), priority
+    
+def Send_Notifications(self, message, priority=0):
     if self.TelegramID != "0":
         TelegramAPI(self.TelegramID, message)
 
     if self.PushoverUserKey != "0":
-        PushoverAPI(self.PushoverUserKey, message)
+        PushoverAPI(self.PushoverUserKey, message, priority)
 
 def TelegramAPI(chat_id, message):
     resultJson = None
-
-    url = "https://api.telegram.org/botTON_TELEGRAM_TOKEN/sendMessage?chat_id={}&text={}".format(
+    # BotID pour One by Ronelabs
+    url = "https://api.telegram.org/bot8284753746:AAFIny-n6t2VtevOU-AEVU9UzrSrR6Y_SvM/sendMessage?chat_id={}&text={}".format(
         chat_id,
         parse.quote(message)
     )
