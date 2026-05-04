@@ -3,6 +3,7 @@
 """
 <plugin key="WanCheck" name="WAN Check Fiber / Starlink" author="Erwan" version="1.0.0">
     <params>
+        <param field="Username" label="ID/UserKey for Telegram,Pushover (0 if none)" width="400px" required="false" default="0,0"/>
         <param field="Mode1" label="Ping MAIN (Fiber)" width="200px" required="true" default="8.8.8.8"/>
         <param field="Mode2" label="Ping STARLINK" width="200px" required="true" default="1.1.1.1"/>
         <param field="Mode3" label="Interval (sec)" width="75px" required="true" default="30"/>
@@ -20,6 +21,11 @@ class BasePlugin:
     def __init__(self):
         self.interval = 30
         self.last = 0
+        self.last_main_state = None
+        self.last_star_state = None
+        # notification IDs
+        self.TelegramID = "0"
+        self.PushoverUserKey = "0"
 
     def onStart(self):
         Domoticz.Log("WAN Check started")
@@ -32,6 +38,13 @@ class BasePlugin:
         create_latency(2, "MAIN Latency")
         create_switch(3, "STARLINK Internet")
         create_latency(4, "STARLINK Latency")
+
+        params = parseCSV(Parameters["Username"])
+        if len(params) == 2:
+            self.TelegramID = CheckParam("Telegram ID", params[0], "0")
+            self.PushoverUserKey = CheckParam("Pushover UserKey", params[1], "0")
+        else:
+            Domoticz.Error("Error reading ID/UserKey parameters. Expected format: TelegramID,PushoverUserKey")
 
         Domoticz.Heartbeat(10)
 
@@ -107,6 +120,63 @@ def update_value(unit, value):
     Devices[unit].Update(nValue=0, sValue=str(value))
 
 
+# Plugin notification functions ---------------------------------------------------
+
+def Send_Notifications(self, message):
+    if self.TelegramID != "0":
+        TelegramAPI(self.TelegramID, message)
+
+    if self.PushoverUserKey != "0":
+        PushoverAPI(self.PushoverUserKey, message)
+
+def TelegramAPI(chat_id, message):
+    resultJson = None
+
+    url = "https://api.telegram.org/botTON_TELEGRAM_TOKEN/sendMessage?chat_id={}&text={}".format(
+        chat_id,
+        parse.quote(message)
+    )
+
+    Domoticz.Debug("Calling Telegram API")
+
+    try:
+        req = request.Request(url)
+        response = request.urlopen(req, timeout=10)
+
+        if response.status == 200:
+            resultJson = json.loads(response.read().decode("utf-8"))
+            if resultJson.get("ok") != True:
+                Domoticz.Error("Telegram API error: {}".format(resultJson))
+                resultJson = None
+        else:
+            Domoticz.Error("Telegram API HTTP error = {}".format(response.status))
+
+    except Exception as e:
+        Domoticz.Error("Telegram API exception: {}".format(str(e)))
+
+    return resultJson
+
+def PushoverAPI(user_key, message, priority=0):
+    try:
+        data = parse.urlencode({
+            "token": "akkhoxtbzgvcj7z5tkt1nsaum6o8gs", # token ELE pour One by Ronelabs
+            "user": user_key,
+            "title": "ONE By Ronelabs",
+            "message": message,
+            "priority": priority
+        }).encode("utf-8")
+
+        req = request.Request("https://api.pushover.net/1/messages.json", data=data)
+        response = request.urlopen(req, timeout=10)
+
+        if response.status != 200:
+            Domoticz.Error("Pushover API HTTP error = {}".format(response.status))
+
+    except Exception as e:
+        Domoticz.Error("Pushover API exception: {}".format(str(e)))
+
+# Plugin  ---------------------------------------------------
+
 global _plugin
 _plugin = BasePlugin()
 
@@ -117,3 +187,22 @@ def onStart():
 
 def onHeartbeat():
     _plugin.onHeartbeat()
+
+# Plugin utility functions ---------------------------------------------------
+
+def parseCSV(strCSV):
+    listvals = []
+    for value in strCSV.split(","):
+        listvals.append(value.strip())
+    return listvals
+
+
+def CheckParam(name, value, default):
+    try:
+        if value is None or value == "":
+            Domoticz.Error("Parameter '{}' is empty, using default '{}'".format(name, default))
+            return default
+        return value
+    except Exception as e:
+        Domoticz.Error("Error checking parameter '{}': {}".format(name, str(e)))
+        return default
