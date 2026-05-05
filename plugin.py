@@ -84,64 +84,55 @@ class BasePlugin:
             star_latency
         ))
         
+        # notification
         # premier passage : pas de notification
         if self.last_main_state is None:
             self.last_main_state = main_ok
             self.last_star_state = star_ok
             return
-        
-        # notification uniquement si changement d'état
-        # premier passage : initialise l'état
-        if self.last_main_state is None:
-            self.last_main_state = main_ok
-            self.last_star_state = star_ok
-            return
-        
+
         # changement détecté
         if main_ok != self.last_main_state or star_ok != self.last_star_state:
-        
-            # nouveau changement en attente
+
             if self.pending_main_state != main_ok or self.pending_star_state != star_ok:
                 self.pending_main_state = main_ok
                 self.pending_star_state = star_ok
                 self.pending_since = time.time()
                 Domoticz.Log("WAN change detected, waiting {} seconds before alert".format(self.alert_delay))
                 return
-        
-            # changement confirmé après délai
+
             if time.time() - self.pending_since >= self.alert_delay:
                 msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
-                Domoticz.Log("WAN STATUS CHANGE confirmed → sending notification")
+                Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
                 Send_Notifications(self, msg, priority)
-        
+
                 self.last_main_state = main_ok
                 self.last_star_state = star_ok
                 self.pending_main_state = None
                 self.pending_star_state = None
                 self.pending_since = 0
-        
+
         else:
-            # retour à l'état normal avant délai = on annule
             self.pending_main_state = None
             self.pending_star_state = None
             self.pending_since = 0
 
 
 # Plugin notification functions (load Secrets) ---------------------------------------------------
-        def load_secrets(self):
-            try:
-                with open("/home/domoticz/plugins/WanCheck/secrets.txt", "r") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line.startswith("telegram_token="):
-                            self.TelegramToken = line.split("=", 1)[1].strip()
-                        elif line.startswith("pushover_token="):
-                            self.PushoverToken = line.split("=", 1)[1].strip()
-        
-                Domoticz.Log("WAN Check secrets loaded")
-        
-            except Exception as e:
-                Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
+    def load_secrets(self):
+        try:
+            with open("/home/domoticz/plugins/WanCheck/secrets.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("telegram_token="):
+                        self.TelegramToken = line.split("=", 1)[1].strip()
+                    elif line.startswith("pushover_token="):
+                        self.PushoverToken = line.split("=", 1)[1].strip()
+    
+            Domoticz.Log("WAN Check secrets loaded")
+    
+        except Exception as e:
+            Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
 
 def ping(ip):
     try:
