@@ -119,7 +119,7 @@ class BasePlugin:
 # Plugin notification functions (load Secrets) ---------------------------------------------------
     def load_secrets(self):
         try:
-            with open("/home/domoticz/plugins/WanCheck/secrets.txt", "r") as f:
+            with open("/home/pi/domoticz/plugins/WANCONTROL/secrets.txt", "r") as f:
                 for line in f:
                     line = line.strip()
                     if line.startswith("telegram_token="):
