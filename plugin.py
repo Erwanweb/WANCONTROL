@@ -21,16 +21,14 @@ import json
 
 class BasePlugin:
     def __init__(self):
-        self.interval = 10
-        self.last = 0
+        self.interval = 20
+        self.latency_interval = 300
+        self.pending_count = 0self.last = 0
         self.last_main_state = None
         self.last_star_state = None
         self.pending_main_state = None
         self.pending_star_state = None
-        self.pending_since = 0
-        self.alert_delay = 30
         self.last_latency_update = 0
-        self.latency_interval = 60
         self.lat_main_hist = []
         self.lat_star_hist = []
         # notification IDs
@@ -59,7 +57,7 @@ class BasePlugin:
 
         self.load_secrets()
 
-        Domoticz.Heartbeat(10)
+        Domoticz.Heartbeat(20)
 
         #Domoticz.Status("WAN Checker plugin started")
 
@@ -81,10 +79,10 @@ class BasePlugin:
         if star_ok:
             self.lat_star_hist.append(star_latency)
         
-        # limite taille historique (6 mesures ≈ 1 min)
-        if len(self.lat_main_hist) > 6:
+        # limite taille historique (15 mesures ≈ 5 min avec interval 20s)
+        if len(self.lat_main_hist) > 15:
             self.lat_main_hist.pop(0)
-        if len(self.lat_star_hist) > 6:
+        if len(self.lat_star_hist) > 15:
             self.lat_star_hist.pop(0)
         
         # toujours mettre à jour les ON/OFF
@@ -119,14 +117,20 @@ class BasePlugin:
         # changement détecté
         if main_ok != self.last_main_state or star_ok != self.last_star_state:
 
+            # nouveau changement candidat
             if self.pending_main_state != main_ok or self.pending_star_state != star_ok:
                 self.pending_main_state = main_ok
                 self.pending_star_state = star_ok
-                self.pending_since = time.time()
-                Domoticz.Log("WAN change detected, waiting {} seconds before alert".format(self.alert_delay))
+                self.pending_count = 1
+                Domoticz.Log("WAN change detected, waiting confirmation")
                 return
 
-            if time.time() - self.pending_since >= self.alert_delay:
+            # même changement confirmé sur heartbeat suivant
+            self.pending_count += 1
+            Domoticz.Log("WAN change confirmation count: {}".format(self.pending_count))
+
+            # alerte au 3e heartbeat identique
+            if self.pending_count >= 3:
                 msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
                 Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
                 Send_Notifications(self, msg, priority)
@@ -135,12 +139,21 @@ class BasePlugin:
                 self.last_star_state = star_ok
                 self.pending_main_state = None
                 self.pending_star_state = None
-                self.pending_since = 0
+                self.pending_count = 0
+
+                # si coupure confirmée, mettre la latence à 0 immédiatement
+                if not main_ok:
+                    self.lat_main_hist = []
+                    update_value(2, 0)
+
+                if not star_ok:
+                    self.lat_star_hist = []
+                    update_value(4, 0)
 
         else:
             self.pending_main_state = None
             self.pending_star_state = None
-            self.pending_since = 0
+            self.pending_count = 0
 
 
 # Plugin notification functions (load Secrets) ---------------------------------------------------
