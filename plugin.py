@@ -132,9 +132,9 @@ class BasePlugin:
 
             # alerte au 3e heartbeat identique
             if self.pending_count >= 3:
-                msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
+                title, msg, priority = build_message(...)
+                Send_Notifications(self, title, msg, priority)
                 Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
-                Send_Notifications(self, msg, priority)
 
                 self.last_main_state = main_ok
                 self.last_star_state = star_ok
@@ -230,26 +230,26 @@ def build_message(main_ok, star_ok, main_latency, star_latency):
     star_txt = "📡 STARLINK OK ✅ {} ms".format(star_latency) if star_ok else "❌ STARLINK DOWN"
 
     if main_ok and star_ok:
-        title = "✅ Internet rétabli sur les 2 WAN"
-        priority = 0
-    elif main_ok and not star_ok:
-        title = "⚠️ Starlink DOWN, fibre Movistar OK"
-        priority = 0
-    elif not main_ok and star_ok:
-        title = "⚠️ Fibre Movistar DOWN, Starlink OK"
-        priority = 0
-    else:
-        title = "🚨 ALERTE : plus aucun Internet"
+        title = "WAN ALERT - ✅ Internet rétabli sur les 2 WAN"
         priority = 1
+    elif main_ok and not star_ok:
+        title = "WAN ALERT - ⚠️ Starlink DOWN, fibre Movistar OK"
+        priority = 1
+    elif not main_ok and star_ok:
+        title = "WAN ALERT - ⚠️ Fibre Movistar DOWN, Starlink OK"
+        priority = 1
+    else:
+        title = "WAN ALERT - 🚨 PLUS D'INTERNET"
+        priority = 2
 
-    return "{}\n{}\n{}".format(title, main_txt, star_txt), priority
+    return title, "{}\n{}".format(main_txt, star_txt), priority
     
-def Send_Notifications(self, message, priority=0):
+def Send_Notifications(self, title, message, priority=0):
     if self.TelegramID != "0" and self.TelegramID != "" and self.TelegramToken != "":
-        TelegramAPI(self.TelegramID, self.TelegramToken, message)
+        TelegramAPI(self.TelegramID, self.TelegramToken, title + "\n" + message)
 
     if self.PushoverUserKey != "0" and self.PushoverUserKey != "" and self.PushoverToken != "":
-        PushoverAPI(self.PushoverUserKey, self.PushoverToken, message, priority)
+        PushoverAPI(self.PushoverUserKey, self.PushoverToken, title, message, priority)
 
 def TelegramAPI(chat_id, token, message):
     resultJson = None
@@ -277,12 +277,12 @@ def TelegramAPI(chat_id, token, message):
 
     return resultJson
 
-def PushoverAPI(user_key, token, message, priority=0):
+def PushoverAPI(user_key, token, title, message, priority=0):
     try:
         data = parse.urlencode({
             "token": token,
             "user": user_key,
-            "title": "ONE By Ronelabs",
+            "title": title,
             "message": message,
             "priority": priority
         }).encode("utf-8")
