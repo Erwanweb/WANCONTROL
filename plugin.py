@@ -29,6 +29,10 @@ class BasePlugin:
         self.pending_star_state = None
         self.pending_since = 0
         self.alert_delay = 30
+        self.last_latency_update = 0
+        self.latency_interval = 60
+        self.lat_main_hist = []
+        self.lat_star_hist = []
         # notification IDs
         self.TelegramToken = ""
         self.PushoverToken = ""
@@ -70,12 +74,33 @@ class BasePlugin:
     def check_all(self):
         main_ok, main_latency = ping(self.main_ip)
         star_ok, star_latency = ping(self.star_ip)
+
+        # historique latence
+        if main_ok:
+            self.lat_main_hist.append(main_latency)
+        if star_ok:
+            self.lat_star_hist.append(star_latency)
         
+        # limite taille historique (6 mesures ≈ 1 min)
+        if len(self.lat_main_hist) > 6:
+            self.lat_main_hist.pop(0)
+        if len(self.lat_star_hist) > 6:
+            self.lat_star_hist.pop(0)
+        
+        # toujours mettre à jour les ON/OFF
         update_switch(1, main_ok)
-        update_value(2, main_latency if main_ok else 0)
-        
         update_switch(3, star_ok)
-        update_value(4, star_latency if star_ok else 0)
+        
+        # latence mise à jour seulement toutes les 60s
+        if time.time() - self.last_latency_update >= self.latency_interval:
+
+            avg_main = sum(self.lat_main_hist) / len(self.lat_main_hist) if self.lat_main_hist else 0
+            avg_star = sum(self.lat_star_hist) / len(self.lat_star_hist) if self.lat_star_hist else 0
+        
+            update_value(2, round(avg_main, 1))
+            update_value(4, round(avg_star, 1))
+        
+            self.last_latency_update = time.time()
         
         Domoticz.Log("MAIN {} - {} ms / STARLINK {} - {} ms".format(
             "OK" if main_ok else "DOWN",
