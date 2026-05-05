@@ -23,7 +23,8 @@ class BasePlugin:
     def __init__(self):
         self.interval = 20
         self.latency_interval = 300
-        self.pending_count = 0self.last = 0
+        self.pending_count = 0
+        self.last = 0
         self.last_main_state = None
         self.last_star_state = None
         self.pending_main_state = None
@@ -89,7 +90,7 @@ class BasePlugin:
         update_switch(1, main_ok)
         update_switch(3, star_ok)
         
-        # latence mise à jour seulement toutes les 60s
+        # latence mise à jour seulement toutes les 5 minutes
         if time.time() - self.last_latency_update >= self.latency_interval:
 
             avg_main = sum(self.lat_main_hist) / len(self.lat_main_hist) if self.lat_main_hist else 0
