@@ -132,7 +132,7 @@ class BasePlugin:
 
             # alerte au 3e heartbeat identique
             if self.pending_count >= 3:
-                title, msg, priority = build_message(...)
+                title, msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
                 Send_Notifications(self, title, msg, priority)
                 Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
 
@@ -279,13 +279,19 @@ def TelegramAPI(chat_id, token, message):
 
 def PushoverAPI(user_key, token, title, message, priority=0):
     try:
-        data = parse.urlencode({
+        payload = {
             "token": token,
             "user": user_key,
             "title": title,
             "message": message,
             "priority": priority
-        }).encode("utf-8")
+        }
+
+        if priority == 2:
+            payload["retry"] = 60
+            payload["expire"] = 3600
+
+        data = parse.urlencode(payload).encode("utf-8")
 
         req = request.Request("https://api.pushover.net/1/messages.json", data=data)
         response = request.urlopen(req, timeout=10)
