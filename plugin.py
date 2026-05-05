@@ -6,7 +6,6 @@
         <param field="Username" label="ID/UserKey for Telegram,Pushover (0 if none)" width="400px" required="false" default="0,0"/>
         <param field="Mode1" label="Ping MAIN (Fiber)" width="200px" required="true" default="8.8.8.8"/>
         <param field="Mode2" label="Ping STARLINK" width="200px" required="true" default="1.1.1.1"/>
-        <param field="Mode3" label="Interval (sec)" width="75px" required="true" default="30"/>
     </params>
 </plugin>
 """
@@ -22,14 +21,14 @@ import json
 
 class BasePlugin:
     def __init__(self):
-        self.interval = 30
+        self.interval = 10
         self.last = 0
         self.last_main_state = None
         self.last_star_state = None
         self.pending_main_state = None
         self.pending_star_state = None
         self.pending_since = 0
-        self.alert_delay = 10
+        self.alert_delay = 30
         # notification IDs
         self.TelegramToken = ""
         self.PushoverToken = ""
@@ -41,7 +40,6 @@ class BasePlugin:
 
         self.main_ip = Parameters["Mode1"]
         self.star_ip = Parameters["Mode2"]
-        self.interval = int(Parameters["Mode3"])
 
         create_switch(1, "MAIN Internet")
         create_latency(2, "MAIN Latency")
