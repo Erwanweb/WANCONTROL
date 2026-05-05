@@ -26,7 +26,13 @@ class BasePlugin:
         self.last = 0
         self.last_main_state = None
         self.last_star_state = None
+        self.pending_main_state = None
+        self.pending_star_state = None
+        self.pending_since = 0
+        self.alert_delay = 10
         # notification IDs
+        self.TelegramToken = ""
+        self.PushoverToken = ""
         self.TelegramID = "0"
         self.PushoverUserKey = "0"
 
@@ -48,6 +54,8 @@ class BasePlugin:
             self.PushoverUserKey = CheckParam("Pushover UserKey", params[1], "0")
         else:
             Domoticz.Error("Error reading ID/UserKey parameters. Expected format: TelegramID,PushoverUserKey")
+
+        self.load_secrets()
 
         Domoticz.Heartbeat(10)
 
@@ -83,12 +91,57 @@ class BasePlugin:
             return
         
         # notification uniquement si changement d'état
-        if main_ok != self.last_main_state or star_ok != self.last_star_state:
-            msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
-            Send_Notifications(self, msg, priority)
+        # premier passage : initialise l'état
+        if self.last_main_state is None:
+            self.last_main_state = main_ok
+            self.last_star_state = star_ok
+            return
         
-        self.last_main_state = main_ok
-        self.last_star_state = star_ok
+        # changement détecté
+        if main_ok != self.last_main_state or star_ok != self.last_star_state:
+        
+            # nouveau changement en attente
+            if self.pending_main_state != main_ok or self.pending_star_state != star_ok:
+                self.pending_main_state = main_ok
+                self.pending_star_state = star_ok
+                self.pending_since = time.time()
+                Domoticz.Log("WAN change detected, waiting {} seconds before alert".format(self.alert_delay))
+                return
+        
+            # changement confirmé après délai
+            if time.time() - self.pending_since >= self.alert_delay:
+                msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
+                Domoticz.Log("WAN STATUS CHANGE confirmed → sending notification")
+                Send_Notifications(self, msg, priority)
+        
+                self.last_main_state = main_ok
+                self.last_star_state = star_ok
+                self.pending_main_state = None
+                self.pending_star_state = None
+                self.pending_since = 0
+        
+        else:
+            # retour à l'état normal avant délai = on annule
+            self.pending_main_state = None
+            self.pending_star_state = None
+            self.pending_since = 0
+
+
+# Plugin notification functions (load Secrets) ---------------------------------------------------
+        def load_secrets(self):
+            try:
+                with open("/home/domoticz/plugins/WanCheck/secrets.txt", "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("telegram_token="):
+                            self.TelegramToken = line.split("=", 1)[1].strip()
+                        elif line.startswith("pushover_token="):
+                            self.PushoverToken = line.split("=", 1)[1].strip()
+        
+                Domoticz.Log("WAN Check secrets loaded")
+        
+            except Exception as e:
+                Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
 
 def ping(ip):
     try:
@@ -162,21 +215,20 @@ def build_message(main_ok, star_ok, main_latency, star_latency):
     return "{}\n{}\n{}".format(title, main_txt, star_txt), priority
     
 def Send_Notifications(self, message, priority=0):
-    if self.TelegramID != "0" and self.TelegramID != "":
-        TelegramAPI(self.TelegramID, message)
+    if self.TelegramID != "0" and self.TelegramID != "" and self.TelegramToken != "":
+        TelegramAPI(self.TelegramID, self.TelegramToken, message)
 
-    if self.PushoverUserKey != "0" and self.PushoverUserKey != "":
-        PushoverAPI(self.PushoverUserKey, message, priority)
+    if self.PushoverUserKey != "0" and self.PushoverUserKey != "" and self.PushoverToken != "":
+        PushoverAPI(self.PushoverUserKey, self.PushoverToken, message, priority)
 
-def TelegramAPI(chat_id, message):
+def TelegramAPI(chat_id, token, message):
     resultJson = None
-    # BotID pour One by Ronelabs
-    url = "https://api.telegram.org/bot8284753746:AAFIny-n6t2VtevOU-AEVU9UzrSrR6Y_SvM/sendMessage?chat_id={}&text={}".format(
+
+    url = "https://api.telegram.org/bot{}/sendMessage?chat_id={}&text={}".format(
+        token,
         chat_id,
         parse.quote(message)
     )
-
-    Domoticz.Debug("Calling Telegram API")
 
     try:
         req = request.Request(url)
@@ -195,10 +247,10 @@ def TelegramAPI(chat_id, message):
 
     return resultJson
 
-def PushoverAPI(user_key, message, priority=0):
+def PushoverAPI(user_key, token, message, priority=0):
     try:
         data = parse.urlencode({
-            "token": "akkhoxtbzgvcj7z5tkt1nsaum6o8gs", # token ELE pour One by Ronelabs
+            "token": token,
             "user": user_key,
             "title": "ONE By Ronelabs",
             "message": message,
