@@ -3,7 +3,7 @@
 """
 <plugin key="WanCheck" name="WAN Check Fiber / Starlink" author="Erwan" version="1.0.0">
     <params>
-        <param field="Username" label="ID/UserKey for Telegram,Pushover (0 if none)" width="400px" required="false" default="0,0"/>
+        <param field="Username" label="ID/UserKey for Telegram,Pushover (0 if none)" width="600px" required="false" default="0,0"/>
         <param field="Mode1" label="Ping MAIN (Fiber)" width="200px" required="true" default="8.8.8.8"/>
         <param field="Mode2" label="Ping STARLINK" width="200px" required="true" default="1.1.1.1"/>
     </params>
@@ -36,7 +36,7 @@ class BasePlugin:
         self.PushoverUserKey = "0"
 
     def onStart(self):
-        Domoticz.Log("WAN Check started")
+        Domoticz.Log("WAN Checker plugin starting")
 
         self.main_ip = Parameters["Mode1"]
         self.star_ip = Parameters["Mode2"]
@@ -56,6 +56,8 @@ class BasePlugin:
         self.load_secrets()
 
         Domoticz.Heartbeat(10)
+
+        #Domoticz.Status("WAN Checker plugin started")
 
     def onHeartbeat(self):
         if time.time() - self.last < self.interval:
