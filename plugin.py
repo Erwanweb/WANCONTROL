@@ -60,6 +60,8 @@ class BasePlugin:
 
         Domoticz.Heartbeat(20)
 
+        self.load_last_state()
+
         #Domoticz.Status("WAN Checker plugin started")
 
     def onHeartbeat(self):
@@ -113,6 +115,7 @@ class BasePlugin:
         if self.last_main_state is None:
             self.last_main_state = main_ok
             self.last_star_state = star_ok
+            self.save_last_state()
             return
 
         # changement détecté
@@ -135,9 +138,9 @@ class BasePlugin:
                 title, msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
                 Send_Notifications(self, title, msg, priority)
                 Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
-
                 self.last_main_state = main_ok
                 self.last_star_state = star_ok
+                self.save_last_state()   
                 self.pending_main_state = None
                 self.pending_star_state = None
                 self.pending_count = 0
@@ -173,6 +176,30 @@ class BasePlugin:
         except Exception as e:
             Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
 
+# Users variable ---------------------------------------------------
+    def load_last_state(self):
+        try:
+            self.last_main_state = int(Domoticz.Variables["WAN_MAIN_STATE"].Value) == 1
+            self.last_star_state = int(Domoticz.Variables["WAN_STAR_STATE"].Value) == 1
+    
+            Domoticz.Log("Loaded WAN state from Domoticz vars: MAIN={}, STARLINK={}".format(
+                self.last_main_state,
+                self.last_star_state
+            ))
+    
+        except Exception:
+            Domoticz.Log("User variables not found, initializing")
+            self.last_main_state = None
+            self.last_star_state = None
+    
+    def save_last_state(self):
+        try:
+            Domoticz.Variables["WAN_MAIN_STATE"].Update(1 if self.last_main_state else 0)
+            Domoticz.Variables["WAN_STAR_STATE"].Update(1 if self.last_star_state else 0)
+        except Exception as e:
+            Domoticz.Error("Error saving WAN state: {}".format(str(e)))
+
+# Other defs ---------------------------------------------------
 def check_route(ip, expected_gateway):
     try:
         # ping pour récupérer la latence
