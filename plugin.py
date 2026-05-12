@@ -183,13 +183,9 @@ class BasePlugin:
             data = domoticz_api("type=command&param=getuservariables")
             existing = [v["Name"] for v in data.get("result", [])]
 
-            if "WAN_MAIN_STATE" not in existing:
-                Domoticz.Log("Creating WAN_MAIN_STATE variable")
-                domoticz_api("type=command&param=saveuservariable&vname=WAN_MAIN_STATE&vtype=0&vvalue=0")
-
-            if "WAN_STAR_STATE" not in existing:
-                Domoticz.Log("Creating WAN_STAR_STATE variable")
-                domoticz_api("type=command&param=saveuservariable&vname=WAN_STAR_STATE&vtype=0&vvalue=0")
+            if "WAN_STATE" not in existing:
+                Domoticz.Log("Creating WAN_STATE variable")
+                domoticz_api("type=command&param=adduservariable&vname=WAN_STATE&vtype=2&vvalue=0,0")
 
         except Exception as e:
             Domoticz.Error("Error ensuring user variables: {}".format(str(e)))    
@@ -197,14 +193,15 @@ class BasePlugin:
     def load_last_state(self):
         try:
             data = domoticz_api("type=command&param=getuservariables")
-
+    
             for var in data.get("result", []):
-                if var.get("Name") == "WAN_MAIN_STATE":
-                    self.last_main_state = int(var.get("Value", 0)) == 1
-
-                if var.get("Name") == "WAN_STAR_STATE":
-                    self.last_star_state = int(var.get("Value", 0)) == 1
-
+                if var.get("Name") == "WAN_STATE":
+                    val = var.get("Value", "0,0")
+                    main, star = val.split(",")
+    
+                    self.last_main_state = (main == "1")
+                    self.last_star_state = (star == "1")
+    
             Domoticz.Log("Loaded WAN state: MAIN={}, STARLINK={}".format(
                 self.last_main_state,
                 self.last_star_state
@@ -215,13 +212,21 @@ class BasePlugin:
             self.last_main_state = None
             self.last_star_state = None
     
+            except Exception as e:
+                Domoticz.Error("Error loading WAN state: {}".format(str(e)))
+                self.last_main_state = None
+                self.last_star_state = None
+    
     def save_last_state(self):
         try:
-            main_value = 1 if self.last_main_state else 0
-            star_value = 1 if self.last_star_state else 0
+            main_value = "1" if self.last_main_state else "0"
+            star_value = "1" if self.last_star_state else "0"
     
-            domoticz_api("type=command&param=updateuservariable&vname=WAN_MAIN_STATE&vtype=0&vvalue={}".format(main_value))
-            domoticz_api("type=command&param=updateuservariable&vname=WAN_STAR_STATE&vtype=0&vvalue={}".format(star_value))
+            value = "{},{}".format(main_value, star_value)
+    
+            domoticz_api(
+                "type=command&param=updateuservariable&vname=WAN_STATE&vtype=2&vvalue={}".format(value)
+            )
     
         except Exception as e:
             Domoticz.Error("Error saving WAN state: {}".format(str(e)))
