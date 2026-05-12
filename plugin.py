@@ -71,8 +71,8 @@ class BasePlugin:
         self.check_all()
 
     def check_all(self):
-        main_ok, main_latency = ping(self.main_ip)
-        star_ok, star_latency = ping(self.star_ip)
+        main_ok, main_latency = check_route(self.main_ip, "192.168.1.1")
+        star_ok, star_latency = check_route(self.star_ip, "192.168.2.1")
 
         # historique latence
         if main_ok:
@@ -131,7 +131,7 @@ class BasePlugin:
             Domoticz.Log("WAN change confirmation count: {}".format(self.pending_count))
 
             # alerte au 3e heartbeat identique
-            if self.pending_count >= 3:
+            if self.pending_count >= 4:
                 title, msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
                 Send_Notifications(self, title, msg, priority)
                 Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
@@ -173,21 +173,31 @@ class BasePlugin:
         except Exception as e:
             Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
 
-def ping(ip):
+def check_route(ip, expected_gateway):
     try:
-        cmd = ["ping", "-c", "2", "-W", "2", ip]
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, text=True)
+        # ping pour récupérer la latence
+        ping_cmd = ["ping", "-c", "2", "-W", "2", ip]
+        ping_result = subprocess.run(ping_cmd, stdout=subprocess.PIPE, text=True)
 
-        if result.returncode != 0:
+        if ping_result.returncode != 0:
             return False, 0
 
-        match = re.search(r"= [\d.]+/([\d.]+)/", result.stdout)
+        latency = 0
+        match = re.search(r"= [\d.]+/([\d.]+)/", ping_result.stdout)
         if match:
-            return True, round(float(match.group(1)), 1)
+            latency = round(float(match.group(1)), 1)
 
-        return True, 0
+        # traceroute court pour vérifier le WAN utilisé
+        trace_cmd = ["traceroute", "-m", "3", ip]
+        trace_result = subprocess.run(trace_cmd, stdout=subprocess.PIPE, text=True, timeout=10)
 
-    except:
+        if expected_gateway in trace_result.stdout:
+            return True, latency
+
+        return False, 0
+
+    except Exception as e:
+        Domoticz.Error("Route check error: {}".format(str(e)))
         return False, 0
 
 def create_switch(unit, name):
