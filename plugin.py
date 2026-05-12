@@ -179,23 +179,33 @@ class BasePlugin:
 # Users variable ---------------------------------------------------
     def load_last_state(self):
         try:
-            self.last_main_state = int(Domoticz.Variables["WAN_MAIN_STATE"].Value) == 1
-            self.last_star_state = int(Domoticz.Variables["WAN_STAR_STATE"].Value) == 1
+            data = domoticz_api("type=command&param=getuservariables")
     
-            Domoticz.Log("Loaded WAN state from Domoticz vars: MAIN={}, STARLINK={}".format(
+            for var in data.get("result", []):
+                if var.get("Name") == "WAN_MAIN_STATE":
+                    self.last_main_state = int(var.get("Value", 0)) == 1
+    
+                if var.get("Name") == "WAN_STAR_STATE":
+                    self.last_star_state = int(var.get("Value", 0)) == 1
+    
+            Domoticz.Log("Loaded WAN state: MAIN={}, STARLINK={}".format(
                 self.last_main_state,
                 self.last_star_state
             ))
-    
-        except Exception:
-            Domoticz.Log("User variables not found, initializing")
-            self.last_main_state = None
-            self.last_star_state = None
+
+    except Exception as e:
+        Domoticz.Error("Error loading WAN state: {}".format(str(e)))
+        self.last_main_state = None
+        self.last_star_state = None
     
     def save_last_state(self):
         try:
-            Domoticz.Variables["WAN_MAIN_STATE"].Update(1 if self.last_main_state else 0)
-            Domoticz.Variables["WAN_STAR_STATE"].Update(1 if self.last_star_state else 0)
+            main_value = 1 if self.last_main_state else 0
+            star_value = 1 if self.last_star_state else 0
+    
+            domoticz_api("type=command&param=updateuservariable&vname=WAN_MAIN_STATE&vtype=0&vvalue={}".format(main_value))
+            domoticz_api("type=command&param=updateuservariable&vname=WAN_STAR_STATE&vtype=0&vvalue={}".format(star_value))
+    
         except Exception as e:
             Domoticz.Error("Error saving WAN state: {}".format(str(e)))
 
@@ -353,6 +363,14 @@ def onHeartbeat():
     _plugin.onHeartbeat()
 
 # Plugin utility functions ---------------------------------------------------
+
+def domoticz_api(query):
+    url = "http://127.0.0.1:8080/json.htm?{}".format(query)
+
+    req = request.Request(url)
+    response = request.urlopen(req, timeout=10)
+
+    return json.loads(response.read().decode("utf-8"))
 
 def parseCSV(strCSV):
     listvals = []
