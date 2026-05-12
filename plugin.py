@@ -180,23 +180,23 @@ class BasePlugin:
     def load_last_state(self):
         try:
             data = domoticz_api("type=command&param=getuservariables")
-    
+
             for var in data.get("result", []):
                 if var.get("Name") == "WAN_MAIN_STATE":
                     self.last_main_state = int(var.get("Value", 0)) == 1
-    
+
                 if var.get("Name") == "WAN_STAR_STATE":
                     self.last_star_state = int(var.get("Value", 0)) == 1
-    
+
             Domoticz.Log("Loaded WAN state: MAIN={}, STARLINK={}".format(
                 self.last_main_state,
                 self.last_star_state
             ))
 
-    except Exception as e:
-        Domoticz.Error("Error loading WAN state: {}".format(str(e)))
-        self.last_main_state = None
-        self.last_star_state = None
+        except Exception as e:
+            Domoticz.Error("Error loading WAN state: {}".format(str(e)))
+            self.last_main_state = None
+            self.last_star_state = None
     
     def save_last_state(self):
         try:
