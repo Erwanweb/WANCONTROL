@@ -60,6 +60,7 @@ class BasePlugin:
 
         Domoticz.Heartbeat(20)
 
+        self.ensure_user_variables()
         self.load_last_state()
 
         #Domoticz.Status("WAN Checker plugin started")
@@ -177,6 +178,22 @@ class BasePlugin:
             Domoticz.Error("Error loading secrets.txt: {}".format(str(e)))
 
 # Users variable ---------------------------------------------------
+    def ensure_user_variables(self):
+        try:
+            data = domoticz_api("type=command&param=getuservariables")
+            existing = [v["Name"] for v in data.get("result", [])]
+
+            if "WAN_MAIN_STATE" not in existing:
+                Domoticz.Log("Creating WAN_MAIN_STATE variable")
+                domoticz_api("type=command&param=saveuservariable&vname=WAN_MAIN_STATE&vtype=0&vvalue=0")
+
+            if "WAN_STAR_STATE" not in existing:
+                Domoticz.Log("Creating WAN_STAR_STATE variable")
+                domoticz_api("type=command&param=saveuservariable&vname=WAN_STAR_STATE&vtype=0&vvalue=0")
+
+        except Exception as e:
+            Domoticz.Error("Error ensuring user variables: {}".format(str(e)))    
+    
     def load_last_state(self):
         try:
             data = domoticz_api("type=command&param=getuservariables")
