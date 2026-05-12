@@ -212,11 +212,6 @@ class BasePlugin:
             self.last_main_state = None
             self.last_star_state = None
     
-            except Exception as e:
-                Domoticz.Error("Error loading WAN state: {}".format(str(e)))
-                self.last_main_state = None
-                self.last_star_state = None
-    
     def save_last_state(self):
         try:
             main_value = "1" if self.last_main_state else "0"
