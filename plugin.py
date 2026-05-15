@@ -32,11 +32,16 @@ class BasePlugin:
         self.last_latency_update = 0
         self.lat_main_hist = []
         self.lat_star_hist = []
+        self.valid_main_state = None
+        self.valid_star_state = None
         # notification IDs
         self.TelegramToken = ""
         self.PushoverToken = ""
         self.TelegramID = "0"
         self.PushoverUserKey = "0"
+        # Delais de demarrage
+        self.start_time = time.time()
+        self.startup_silence = 120
 
     def onStart(self):
         Domoticz.Log("WAN Checker plugin starting")
@@ -90,8 +95,8 @@ class BasePlugin:
             self.lat_star_hist.pop(0)
         
         # toujours mettre à jour les ON/OFF
-        update_switch(1, main_ok)
-        update_switch(3, star_ok)
+        # update_switch(1, main_ok)
+        # update_switch(3, star_ok)
         
         # latence mise à jour seulement toutes les 5 minutes
         if time.time() - self.last_latency_update >= self.latency_interval:
@@ -116,6 +121,13 @@ class BasePlugin:
         if self.last_main_state is None:
             self.last_main_state = main_ok
             self.last_star_state = star_ok
+        
+            self.valid_main_state = main_ok
+            self.valid_star_state = star_ok
+        
+            update_switch(1, main_ok)
+            update_switch(3, star_ok)
+        
             self.save_last_state()
             return
 
@@ -133,27 +145,43 @@ class BasePlugin:
             # même changement confirmé sur heartbeat suivant
             self.pending_count += 1
             Domoticz.Log("WAN change confirmation count: {}".format(self.pending_count))
+            if self.pending_count < 4:
+                return
 
-            # alerte au 3e heartbeat identique
+            # alerte au 4e heartbeat identique
             if self.pending_count >= 4:
+
                 title, msg, priority = build_message(main_ok, star_ok, main_latency, star_latency)
-                Send_Notifications(self, title, msg, priority)
-                Domoticz.Log("WAN STATUS CHANGE confirmed - sending notification")
+            
+                # anti spam reboot
+                if time.time() - self.start_time >= self.startup_silence:
+                    Send_Notifications(self, title, msg, priority)
+            
+                Domoticz.Log("WAN STATUS CHANGE confirmed")
+            
+                # état validé
+                self.valid_main_state = main_ok
+                self.valid_star_state = star_ok
+            
+                update_switch(1, self.valid_main_state)
+                update_switch(3, self.valid_star_state)
+            
                 self.last_main_state = main_ok
                 self.last_star_state = star_ok
-                self.save_last_state()   
+                self.save_last_state()
+            
                 self.pending_main_state = None
                 self.pending_star_state = None
                 self.pending_count = 0
-
-                # si coupure confirmée, mettre la latence à 0 immédiatement
+            
+                # reset latence si down confirmé
                 if not main_ok:
                     self.lat_main_hist = []
                     update_value(2, 0)
-
+            
                 if not star_ok:
                     self.lat_star_hist = []
-                    update_value(4, 0)
+        update_value(4, 0)
 
         else:
             self.pending_main_state = None
