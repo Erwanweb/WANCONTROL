@@ -181,7 +181,7 @@ class BasePlugin:
             
                 if not star_ok:
                     self.lat_star_hist = []
-        update_value(4, 0)
+                    update_value(4, 0)
 
         else:
             self.pending_main_state = None
